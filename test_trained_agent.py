@@ -3,28 +3,28 @@ from keras.models import load_model
 import numpy as np
 import keras.backend as K
 
+from agent import Agent
 
-trained_actor = 'actor_model_250_0.0.hdf5'
+trained_actor = 'content/model_checkpoints/saved_model.h5'
 scenario = 'academy_counterattack_hard'
 
 env = football_env.create_environment(env_name=scenario, representation='simple115v2', render=True)
 
 n_actions = env.action_space.n
+state_dimension = env.observation_space.shape
 dummy_n = np.zeros((1, 1, n_actions))
 dummy_1 = np.zeros((1, 1, 1))
 
-model_actor = load_model(trained_actor, custom_objects={'loss': 'categorical_hinge'})
 
 
 state = env.reset()
 done = False
-
+actor_critic_agent = Agent(n_actions, input_dims=state_dimension)
+actor_critic_agent.load_models()
 while True:
-    state_input = K.expand_dims(state, 0)
-    action_probs = model_actor.predict([state_input, dummy_n, dummy_1, dummy_1, dummy_1], steps=1)
-    action = np.argmax(action_probs)
-    print(action)
-    next_state, _, done, _ = env.step(action)
+    executable_action, action_dist, action_onehot, q_value = actor_critic_agent.choose_action(state)
+    print(executable_action)
+    next_state, _, done, _ = env.step(executable_action)
     state = next_state
     if done:
         state = env.reset()
