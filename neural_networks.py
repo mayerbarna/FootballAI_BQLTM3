@@ -4,7 +4,10 @@ from keras.optimizers import Adam
 from tensorflow import keras
 
 
-class CriticNetworkFromSimple():
+from losses import PPOLoss
+
+
+class CriticNetworkFromSimple(keras.Model):
     """
         Indicates how good/bad the taken action was
     """
@@ -62,11 +65,13 @@ class ActorNetworkFromSimple(keras.Model):
         model = Model(inputs=[state_input_shape, oldpolicy_probs, advantages, rewards, values],
                       outputs=[output_actions])
 
+        loss = PPOLoss()
+
 
 
         model.compile(optimizer=Adam(learning_rate=1e-4),
-                      loss=[custom_ppo_loss(old_policy_probs=oldpolicy_probs, advantages=advantages,
-                                            rewards=rewards, values=values)])
+                      loss=[loss.get_custom_ppo_loss(old_policy_probs=oldpolicy_probs, advantages=advantages,
+                                                     rewards=rewards, values=values)])
 
         policy = Model(inputs=[state_input_shape], outputs=[output_actions])
         if summary:

@@ -1,7 +1,6 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-
 from neural_networks import ActorNetworkFromSimple, CriticNetworkFromSimple
 from ppo_memory import Memory
 
@@ -38,10 +37,12 @@ class Agent:
         self.critic = keras.models.load_model(self.chkpt_dir + 'critic')
 
     def choose_action(self, observation):
-        state = tf.convert_to_tensor([observation])
+        #state = tf.convert_to_tensor([observation])
 
-        action_dist = self.policy.predict(state)
-        q_value = self.critic.predict(state)
+        state = keras.backend.expand_dims(tf.convert_to_tensor(observation),0)
+
+        action_dist = self.policy.predict(state, steps=1)
+        q_value = self.critic.predict(state,steps=1)
         executable_action = np.random.choice(self.n_actions, p=action_dist[0, :])
         # select a random action according to the calculated distribution
         action_onehot = np.zeros(self.n_actions)
@@ -50,7 +51,7 @@ class Agent:
         return executable_action, action_dist, action_onehot, q_value
 
     def get_advantage(self, state):
-        input_state = tf.convert_to_tensor([state])
+        input_state = keras.backend.expand_dims(tf.convert_to_tensor(state),0)
 
         q_value = self.critic.predict(input_state,steps=1)  # needs one more q_values as we need the value of t+1 state
         self.memory.add_q_value(q_value)
@@ -70,12 +71,13 @@ class Agent:
 
     def train_models(self,advantages, returns, n_epochs = 10):
         self.actor.fit([np.array(self.memory.states), np.array(self.memory.action_probabilities), np.array(advantages),
-                         np.array(np.reshape(self.memory.rewards, newshape=(-1, 1, 1))), np.array(self.memory.values[:-1])],
-                        # values only the last one
+                        np.reshape(self.memory.rewards, newshape=(-1, 1, 1)), np.array(self.memory.values[:-1])],                        # values only the last one
                         [np.array(np.reshape(self.memory.actions_onehot, newshape=(-1, self.n_actions)))],
                         shuffle=True, verbose=True, epochs=n_epochs)
 
         self.critic.fit([np.array(self.memory.states)],
                          [np.array(np.reshape(returns, newshape=(-1, 1)))],
                          shuffle=True, verbose=True, epochs=n_epochs)
+
+
 

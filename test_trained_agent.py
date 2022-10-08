@@ -6,7 +6,8 @@ import keras.backend as K
 from agent import Agent
 
 trained_actor = 'content/model_checkpoints/saved_model.h5'
-scenario = 'academy_counterattack_hard'
+# scenario = 'academy_counterattack_hard'
+scenario = 'academy_empty_goal'
 
 env = football_env.create_environment(env_name=scenario, representation='simple115v2', render=True)
 

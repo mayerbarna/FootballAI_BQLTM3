@@ -1,6 +1,7 @@
 import time
 
-from keras.callbacks import TensorBoard
+from keras.callbacks import TensorBoard, ModelCheckpoint
+from keras.saving.save import load_model
 
 import log_conf
 import os
@@ -17,16 +18,23 @@ from tensorflow.python.framework.ops import disable_eager_execution
 
 disable_eager_execution()
 
-GAMMA = 0.993
+config = tf.compat.v1.ConfigProto( device_count = {'GPU': 1 , 'CPU': 8} )
+config.gpu_options.allow_growth=True
+sess = tf.compat.v1.Session(config=config)
+keras.set_session(sess)
+
+
+
+GAMMA = 0.99
 LAMBDA = 0.95
-CLIPPING_RANGE = 0.08
+CLIPPING_RANGE = 0.2
 CRITIC_DISCOUNT = 0.5
-ENTROPY = 0.003
+ENTROPY = 0.001
 
-loss_tracking = TensorBoard(log_dir='./logs/loss_tracking', histogram_freq=1)
+loss_tracking = TensorBoard(log_dir='saved_agents/train_1', histogram_freq=1)
 
-selected_env = 'academy_counterattack_hard'
-# selected_env = 'academy_empty_goal'
+# selected_env = 'academy_counterattack_hard'
+selected_env = 'academy_empty_goal'
 env = football_env.create_environment(env_name=selected_env, representation='simple115v2', render=True,
                                       rewards='scoring,checkpoints')
 
@@ -38,33 +46,45 @@ n_actions = env.action_space.n
 print(state_dimension)
 print(n_actions)
 
+# checkpoint callback
 
-def custom_ppo_loss_print(old_policy_probs, advantages, rewards, values):
-    def loss(y_true, y_pred):
-        y_true = tf.print(y_true, [y_true], 'y_true: ')
-        y_pred = tf.print(y_pred, [y_pred], 'y_pred: ')
-        newpolicy_probs = y_pred
-        # newpolicy_probs = y_true * y_pred
-        newpolicy_probs = tf.print(newpolicy_probs, [newpolicy_probs], 'new policy probs: ')
-        ratio = keras.exp(keras.log(newpolicy_probs + 1e-10) - keras.log(old_policy_probs + 1e-10))
-        ratio = tf.print(ratio, [ratio], 'ratio: ')
-        p1 = ratio * advantages
-        p2 = keras.clip(ratio, min_value=1 - CLIPPING_RANGE, max_value=1 + CLIPPING_RANGE) * advantages
-        actor_loss = -keras.mean(keras.minimum(p1, p2))
-        actor_loss = tf.print(actor_loss, [actor_loss], 'actor_loss: ')
-        critic_loss = keras.mean(keras.square(rewards - values))
-        critic_loss = tf.print(critic_loss, [critic_loss], 'critic_loss: ')
-        term_a = CRITIC_DISCOUNT * critic_loss
-        term_a = tf.print(term_a, [term_a], 'term_a: ')
-        term_b_2 = keras.log(newpolicy_probs + 1e-10)
-        term_b_2 = tf.print(term_b_2, [term_b_2], 'term_b_2: ')
-        term_b = ENTROPY * keras.mean(-(newpolicy_probs * term_b_2))
-        term_b = tf.print(term_b, [term_b], 'term_b: ')
-        total_loss = term_a + actor_loss - term_b
-        total_loss = tf.print(total_loss, [total_loss], 'total_loss: ')
-        return total_loss
+CHECKPOINT_FILE_PATH = 'content/model_checkpoints/saved_model.h5'
 
-    return loss
+model_checkpoint_callback = ModelCheckpoint(
+    filepath=CHECKPOINT_FILE_PATH,
+    monitor='loss',
+    mode='min',
+    save_best_only=True,
+    save_freq='epoch'
+)
+
+
+# def custom_ppo_loss_print(old_policy_probs, advantages, rewards, values):
+#     def loss(y_true, y_pred):
+#         y_true = tf.print(y_true, [y_true], 'y_true: ')
+#         y_pred = tf.print(y_pred, [y_pred], 'y_pred: ')
+#         newpolicy_probs = y_pred
+#         # newpolicy_probs = y_true * y_pred
+#         newpolicy_probs = tf.print(newpolicy_probs, [newpolicy_probs], 'new policy probs: ')
+#         ratio = keras.exp(keras.log(newpolicy_probs + 1e-10) - keras.log(old_policy_probs + 1e-10))
+#         ratio = tf.print(ratio, [ratio], 'ratio: ')
+#         p1 = ratio * advantages
+#         p2 = keras.clip(ratio, min_value=1 - CLIPPING_RANGE, max_value=1 + CLIPPING_RANGE) * advantages
+#         actor_loss = -keras.mean(keras.minimum(p1, p2))
+#         actor_loss = tf.print(actor_loss, [actor_loss], 'actor_loss: ')
+#         critic_loss = keras.mean(keras.square(rewards - values))
+#         critic_loss = tf.print(critic_loss, [critic_loss], 'critic_loss: ')
+#         term_a = CRITIC_DISCOUNT * critic_loss
+#         term_a = tf.print(term_a, [term_a], 'term_a: ')
+#         term_b_2 = keras.log(newpolicy_probs + 1e-10)
+#         term_b_2 = tf.print(term_b_2, [term_b_2], 'term_b_2: ')
+#         term_b = ENTROPY * keras.mean(-(newpolicy_probs * term_b_2))
+#         term_b = tf.print(term_b, [term_b], 'term_b: ')
+#         total_loss = term_a + actor_loss - term_b
+#         total_loss = tf.print(total_loss, [total_loss], 'total_loss: ')
+#         return total_loss
+#
+#     return loss
 
 
 def custom_ppo_loss(old_policy_probs, advantages, rewards, values):
@@ -162,10 +182,14 @@ def get_ppo_critic_model_from_simple(input_dimensions, output_dimensions):
 initial_n = np.zeros((1, 1, n_actions))
 initial_1 = np.zeros((1, 1, 1))
 
-# use pretrained models
-# actor_model = load_model('actor_model_250_0.0.hdf5', custom_objects={'loss': 'categorical_hinge'})
 
+# use pretrained models
+
+
+# actor_model = load_model('saved_agents/actor_model_250_0.0.hdf5', custom_objects={'loss': 'categorical_hinge'})
 actor_model = get_ppo_actor_model_from_simple(input_dimensions=state_dimension, output_dimensions=n_actions)
+#actor_model = load_model('content/model_checkpoints/saved_model.h5', custom_objects={'loss': 'categorical_hinge'})
+
 critic_model = get_ppo_critic_model_from_simple(input_dimensions=state_dimension, output_dimensions=n_actions)
 
 
@@ -183,7 +207,7 @@ def test_reward():
         state = next_state
         total_reward += reward
         max_num_steps_limit += 1
-        if max_num_steps_limit > 20:
+        if max_num_steps_limit > 50:
             break
     return total_reward
 
@@ -191,7 +215,7 @@ def test_reward():
 reached_model_target = False  # tells us whether the model is good enough or not
 best_reward = 0
 iters = 0
-max_iters = 500
+max_iters = 1000
 steps_of_ppo = 128
 
 while not reached_model_target and iters < max_iters:
@@ -255,32 +279,37 @@ while not reached_model_target and iters < max_iters:
 
     # model training
 
-    actor_model.fit([states, actions_probabilities, advantages,
-                     np.reshape(rewards, newshape=(-1, 1, 1)), values[:-1]],
-                    # values only the last one
-                    [np.reshape(actions_onehot, newshape=(-1, n_actions))],
-                    shuffle=True, verbose=True, epochs=8, callbacks=[loss_tracking])
+    with sess.as_default():
+        with sess.graph.as_default():
+            actor_model.fit([np.array(states), np.array(actions_probabilities), np.array(advantages),
+                             np.array(np.reshape(rewards, newshape=(-1, 1, 1))), np.array(values[:steps_of_ppo])],
+                            # values only the last one
+                            [np.array(np.reshape(actions_onehot, newshape=(-1, n_actions)))],
+                            shuffle=True, verbose=True, epochs=64)
 
-    critic_model.fit([states],
-                     [np.reshape(returns, newshape=(-1, 1))],
-                     shuffle=True, verbose=True, epochs=8, callbacks=[loss_tracking])
+            critic_model.fit([np.array(states)],
+                             [np.array(np.reshape(returns, newshape=(-1, 1)))],
+                             shuffle=True, verbose=True, epochs=64)
 
+
+
+    # callbacks=[loss_tracking]
     # model evaluation
 
     avg_reward = np.mean([test_reward() for _ in range(5)])
     print('total test reward=' + str(avg_reward))
 
     # after every 10 iters we save the models
-    if iters % 25 == 0:
-        actor_model.save('saved_agents/actor_model_new_{}_{}.hdf5'.format(iters, avg_reward))
-        critic_model.save('saved_agents/critic_model_new_{}_{}.hdf5'.format(iters, avg_reward))
+    if iters % 50 == 0:
+        actor_model.save('saved_agents/actor_model_empty_goal_{}_{}.hdf5'.format(iters, avg_reward))
+        critic_model.save('saved_agents/critic_model_empty_goal_{}_{}.hdf5'.format(iters, avg_reward))
 
     # if we scored a goal 90% of the total times we need to save the checkpoint
 
-    if avg_reward >= best_reward:
+    if avg_reward > best_reward:
         print('best reward=' + str(avg_reward))
-        actor_model.save('saved_agents/actor_model_new_{}_{}.hdf5'.format(iters, avg_reward))
-        critic_model.save('saved_agents/critic_model_new_{}_{}.hdf5'.format(iters, avg_reward))
+        actor_model.save('saved_agents/actor_model_empty_goal_{}_{}.hdf5'.format(iters, avg_reward))
+        critic_model.save('saved_agents/critic_model_empty_goal_{}_{}.hdf5'.format(iters, avg_reward))
         best_reward = avg_reward
     if best_reward > 0.9 or iters > max_iters:
         reached_model_target = True
