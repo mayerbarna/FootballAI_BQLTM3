@@ -1,12 +1,14 @@
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
+
+from losses import PPOLoss
 from neural_networks import ActorNetworkFromSimple, CriticNetworkFromSimple
 from ppo_memory import Memory
 
 
 class Agent:
-    def __init__(self, n_actions, input_dims, gamma=0.99, entropy=0.0003,
+    def __init__(self, n_actions, input_dims, gamma=0.99, entropy=0.001,
                  gae_lambda=0.95, policy_clipping_range=0.2, critic_discount=0.5, chkpt_dir='saved_agents/'):
         self.gamma = gamma
         self.policy_clip = policy_clipping_range
@@ -39,10 +41,10 @@ class Agent:
     def choose_action(self, observation):
         #state = tf.convert_to_tensor([observation])
 
-        state = keras.backend.expand_dims(tf.convert_to_tensor(observation),0)
-
-        action_dist = self.policy.predict(state, steps=1)
-        q_value = self.critic.predict(state,steps=1)
+        state = np.expand_dims(np.array(observation),0)
+        #state = keras.backend.expand_dims(tf.convert_to_tensor(observation), 0)
+        action_dist = self.policy.predict(state, batch_size=128)
+        q_value = self.critic.predict(state,batch_size=128)
         executable_action = np.random.choice(self.n_actions, p=action_dist[0, :])
         # select a random action according to the calculated distribution
         action_onehot = np.zeros(self.n_actions)
@@ -51,9 +53,10 @@ class Agent:
         return executable_action, action_dist, action_onehot, q_value
 
     def get_advantage(self, state):
-        input_state = keras.backend.expand_dims(tf.convert_to_tensor(state),0)
+        input_state = np.expand_dims(np.array(state),0)
+        #input_state = keras.backend.expand_dims(tf.convert_to_tensor(state), 0)
 
-        q_value = self.critic.predict(input_state,steps=1)  # needs one more q_values as we need the value of t+1 state
+        q_value = self.critic.predict(input_state,batch_size=128)  # needs one more q_values as we need the value of t+1 state
         self.memory.add_q_value(q_value)
 
         returns = []
@@ -69,15 +72,14 @@ class Agent:
         # logging.info(f'RETURNS: {returns}\r ADVANTAGES: {advantages}\r NORMALIZED: {normalized_adv}')
         return returns, normalized_adv
 
-    def train_models(self,advantages, returns, n_epochs = 10):
+    def train_models(self,advantages, returns, n_epochs = 50):
         self.actor.fit([np.array(self.memory.states), np.array(self.memory.action_probabilities), np.array(advantages),
                         np.reshape(self.memory.rewards, newshape=(-1, 1, 1)), np.array(self.memory.values[:-1])],                        # values only the last one
                         [np.array(np.reshape(self.memory.actions_onehot, newshape=(-1, self.n_actions)))],
-                        shuffle=True, verbose=True, epochs=n_epochs)
+                        shuffle=True, verbose=True, epochs=n_epochs, batch_size=128)
 
         self.critic.fit([np.array(self.memory.states)],
                          [np.array(np.reshape(returns, newshape=(-1, 1)))],
-                         shuffle=True, verbose=True, epochs=n_epochs)
-
+                         shuffle=True, verbose=True, epochs=n_epochs, batch_size=128)
 
 
