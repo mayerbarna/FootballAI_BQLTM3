@@ -23,7 +23,6 @@ done = False
 actor_critic_agent = Agent(n_actions, input_dims=state_dimension)
 actor_critic_agent.load_models()
 while True:
-
     input_state = np.expand_dims(state, 0)
     input_state = tf.convert_to_tensor(input_state)
     actions_probabilities = actor_critic_agent.actor.predict([input_state, dummy_n,dummy_1,dummy_1,dummy_1],

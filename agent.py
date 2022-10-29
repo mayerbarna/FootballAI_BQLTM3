@@ -30,13 +30,14 @@ class Agent:
 
     def save_models(self):
         print('... saving models ...')
-        self.actor.save(self.chkpt_dir + 'actor')
-        self.critic.save(self.chkpt_dir + 'critic')
+        self.actor.save(self.chkpt_dir + 'model_actor.hdf5')
+        self.critic.save(self.chkpt_dir + 'model_critic.hdf5')
+
 
     def load_models(self):
         print('... loading models ...')
-        self.actor = keras.models.load_model(self.chkpt_dir + 'actor', compile=False)
-        self.critic = keras.models.load_model(self.chkpt_dir + 'critic')
+        self.actor = keras.models.load_model(self.chkpt_dir + 'model_actor.hdf5', compile=False)
+        self.critic = keras.models.load_model(self.chkpt_dir + 'model_critic.hdf5')
 
     def choose_action(self, observation):
         dummy_n = np.zeros((1, 1, self.n_actions))
