@@ -67,11 +67,14 @@ class ActorNetworkFromSimple(keras.Model):
 
         loss = PPOLoss()
 
-
-
-        model.compile(optimizer=Adam(learning_rate=1e-4),
-                      loss=[loss.get_custom_ppo_loss(old_policy_probs=oldpolicy_probs, advantages=advantages,
-                                                     rewards=rewards, values=values)])
+        model.add_loss(loss.get_custom_ppo_loss(
+            y_true=None,
+            y_pred=output_actions,
+            old_policy_probs=oldpolicy_probs,
+            advantages=advantages,
+            rewards=rewards,
+            values=values))
+        model.compile(optimizer=Adam(learning_rate=1e-4))
 
         policy = Model(inputs=[state_input_shape], outputs=[output_actions])
         if summary:

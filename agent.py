@@ -39,12 +39,14 @@ class Agent:
         self.critic = keras.models.load_model(self.chkpt_dir + 'critic')
 
     def choose_action(self, observation):
-        #state = tf.convert_to_tensor([observation])
-        state = np.expand_dims(np.array(observation),0)
+        dummy_n = np.zeros((1, 1, self.n_actions))
+        dummy_1 = np.zeros((1, 1, 1))
+        # state = tf.convert_to_tensor([observation])
+        state = np.expand_dims(np.array(observation), 0)
         # state = tf.convert_to_tensor(state)
-        #state = keras.backend.expand_dims(tf.convert_to_tensor(observation), 0)
-        action_dist = self.policy.predict(state, batch_size=128)
-        q_value = self.critic.predict(state,batch_size=128)
+        # state = keras.backend.expand_dims(tf.convert_to_tensor(observation), 0)
+        action_dist = self.actor.predict([state, dummy_n,dummy_1,dummy_1,dummy_1], batch_size=128)
+        q_value = self.critic.predict(state, batch_size=128)
         executable_action = np.random.choice(self.n_actions, p=action_dist[0, :])
         # select a random action according to the calculated distribution
         action_onehot = np.zeros(self.n_actions)
@@ -53,17 +55,19 @@ class Agent:
         return executable_action, action_dist, action_onehot, q_value
 
     def get_advantage(self, state):
-        input_state = np.expand_dims(np.array(state),0)
-        # input_state = tf.convert_to_tensor(input_state)
-        #input_state = keras.backend.expand_dims(tf.convert_to_tensor(state), 0)
+        #input_state = np.expand_dims(np.array(state), 0)
+        #input_state = tf.convert_to_tensor(input_state)
+        input_state = keras.backend.expand_dims(tf.convert_to_tensor(state), 0)
 
-        q_value = self.critic.predict(input_state,batch_size=128)  # needs one more q_values as we need the value of t+1 state
+        q_value = self.critic.predict(input_state,
+                                      batch_size=128)  # needs one more q_values as we need the value of t+1 state
         self.memory.add_q_value(q_value)
 
         returns = []
         gae = 0
         for t in reversed(range(self.memory.get_batch_size())):
-            delta = self.memory.rewards[t] + self.gamma * self.memory.values[t + 1] * self.memory.masks[t] - self.memory.values[t]
+            delta = self.memory.rewards[t] + self.gamma * self.memory.values[t + 1] * self.memory.masks[t] - \
+                    self.memory.values[t]
             gae = delta + self.gamma * self.gae_lambda * self.memory.masks[t] * gae
             returns.insert(0, gae + self.memory.values[t])
         advantages = np.array(returns) - self.memory.values[:-1]
@@ -73,15 +77,14 @@ class Agent:
         # logging.info(f'RETURNS: {returns}\r ADVANTAGES: {advantages}\r NORMALIZED: {normalized_adv}')
         return returns, normalized_adv
 
-    def train_models(self,advantages, returns, n_epochs = 50):
+    def train_models(self, advantages, returns, n_epochs=8):
 
-        self.actor.fit([self.memory.states, self.memory.action_probabilities, advantages,
-                        np.reshape(self.memory.rewards, newshape=(-1, 1, 1)), self.memory.values[:-1]],                        # values only the last one
-                        [np.reshape(self.memory.actions_onehot, newshape=(-1, self.n_actions))],
+        self.actor.fit([np.array(self.memory.states), np.array(self.memory.action_probabilities), np.array(advantages),
+                        np.reshape(self.memory.rewards, newshape=(-1, 1, 1)), np.array(self.memory.values[:-1])],
+                       # values only the last one
+                       [np.reshape(self.memory.actions_onehot, newshape=(-1, self.n_actions))],
+                       shuffle=True, verbose=True, epochs=n_epochs, batch_size=128)
+
+        self.critic.fit([np.array(self.memory.states)],
+                        [np.reshape(returns, newshape=(-1, 1))],
                         shuffle=True, verbose=True, epochs=n_epochs, batch_size=128)
-
-        self.critic.fit([self.memory.states],
-                         [np.reshape(returns, newshape=(-1, 1))],
-                         shuffle=True, verbose=True, epochs=n_epochs, batch_size=128)
-
-

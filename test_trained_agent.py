@@ -15,16 +15,19 @@ env = football_env.create_environment(env_name=scenario, representation='simple1
 n_actions = env.action_space.n
 state_dimension = env.observation_space.shape
 
+dummy_n = np.zeros((1, 1, n_actions))
+dummy_1 = np.zeros((1, 1, 1))
 
 state = env.reset()
 done = False
 actor_critic_agent = Agent(n_actions, input_dims=state_dimension)
 actor_critic_agent.load_models()
 while True:
+
     input_state = np.expand_dims(state, 0)
     input_state = tf.convert_to_tensor(input_state)
-    actions_probabilities = actor_critic_agent.policy.predict([input_state],
-                                                              batch_size=128)
+    actions_probabilities = actor_critic_agent.actor.predict([input_state, dummy_n,dummy_1,dummy_1,dummy_1],
+                                                             batch_size=128)
     executable_action = np.argmax(actions_probabilities)
     print(executable_action)
     next_state, _, done, _ = env.step(executable_action)
