@@ -28,7 +28,7 @@ while True:
     actions_probabilities = actor_critic_agent.actor.predict([input_state, dummy_n,dummy_1,dummy_1,dummy_1],
                                                              batch_size=128)
     executable_action = np.argmax(actions_probabilities)
-    print(executable_action)
+
     next_state, _, done, _ = env.step(executable_action)
     state = next_state
     if done:
