@@ -43,7 +43,6 @@ def test_reward(actor: ActorNetworkFromSimple):
 
     is_done = False
     total_reward = 0
-
     print('...testing models...')
 
     max_num_steps_limit = 0  # if it takes forever to score it is considered as not scoring
@@ -52,7 +51,6 @@ def test_reward(actor: ActorNetworkFromSimple):
         actions_probabilities = actor.predict([state_input, dummy_n, dummy_1, dummy_1, dummy_1],
                                                                  steps=1)
         executable_action = np.argmax(actions_probabilities)
-        print(executable_action)
         next_state, reward, is_done, information = env.step(executable_action)
         state = next_state
         total_reward += reward
@@ -70,12 +68,10 @@ steps_of_ppo = 128
 best_reward = 0
 
 while not reached_model_target and iters < max_iters:
-
     actor_critic_agent.memory.clear()
 
     for _ in range(steps_of_ppo):
         executable_action, action_dist, action_onehot, q_value = actor_critic_agent.choose_action(state)
-
 
         observation, reward, is_done, information = env.step(executable_action)
         print(
@@ -83,19 +79,15 @@ while not reached_model_target and iters < max_iters:
                 q_value))
 
         mask = not is_done
-
-        actor_critic_agent.memory.store_in_memory(state, executable_action, action_dist, action_onehot, q_value, mask,
-                                                  reward)
+        actor_critic_agent.memory.store_in_memory(state, executable_action, action_dist, action_onehot, q_value, mask, reward)
 
         state = observation  # set the next state to our observation
 
         if is_done:
             env.reset()
-
     # GAE
     returns, advantages = actor_critic_agent.get_advantage(state)
     actor_critic_agent.train_models(advantages, returns)
-
 
     avg_reward = np.mean([test_reward(actor_critic_agent.actor) for _ in range(2)])
     print('total test reward=' + str(avg_reward))
