@@ -4,7 +4,7 @@ import numpy as np
 from agent import Agent
 
 from neural_networks import ActorNetworkFromSimple
-
+from tensorflow.python.framework.ops import disable_eager_execution
 
 CALLBACK = True
 CONTINUE_TRAINING = False
@@ -14,6 +14,8 @@ SCENARIO = 'academy_counterattack_hard'
 REPRESENTATION = 'simple115v2'
 REWARDS = 'scoring,checkpoints'
 # REWARDS = 'scoring'
+
+disable_eager_execution()
 
 env = football_env.create_environment(env_name=SCENARIO, representation=REPRESENTATION, render=RENDER,
                                       rewards=REWARDS)
